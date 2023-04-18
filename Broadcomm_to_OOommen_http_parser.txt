@@ -1,0 +1,153 @@
+/******************************************************************************
+                       Name     : Ashutosh Kar
+                       Program  : HTTP Response parser
+                       Language : C++ (Braodcom Assignment)
+*******************************************************************************/
+
+// C++ program for the http response parser
+#include <iostream>
+#include <sstream>
+#include <cstring>
+#include <map>
+using namespace std;
+
+// Structure used to keep the HTTP response data
+struct HTTPResponse {
+    string HTTP_version;
+    int status;
+    string validity_check;
+    map<string, string> headers; 
+};
+
+// Parsing HTTP response status line
+bool parse_status_line(const string& line, HTTPResponse& response) 
+{
+    stringstream StStrm(line);
+    string HTTP_version;
+    int status;
+    string reason_phrase;
+
+    //A status line consists of the HTTP version, status code,
+    //and reason phrase, each separated by a space
+    if (!(StStrm >> HTTP_version >> status) || HTTP_version.substr(0, 5) != "HTTP/" || StStrm.peek() != ' ' ||
+        !(getline(StStrm, reason_phrase))) 
+    {
+        //If status line is invalid, print error and abort parsing
+        //(e.g. tc3 :"Header1: value1" is invalid )
+        cout << "Invalid status line" << endl;
+        return false;
+    }
+    // HTTP version would be 5th to 7th character in string as follows:
+    // HTTP/1.0  -> 1.0
+    response.HTTP_version = HTTP_version.substr(5,7);
+    response.status = status;
+
+    return true;
+}
+
+// Parsing HTTP response header line
+bool parse_header_line(const string& line, HTTPResponse& response)
+{
+    size_t colon_pos = line.find(':');
+    if (colon_pos == string::npos) {
+        //It would show invalid header in case of tc2 (for line invalid_header, which lacks ":")
+        //cerr << "Error: Invalid header line:" << line << endl;
+        return false;
+    }
+
+    string header_name = line.substr(0, colon_pos);
+    //After :, there is a blank space, hence colon_pos + 2
+    //e.g. cache-control: public, name : cache-control, value: public
+    string header_value = line.substr(colon_pos + 2);
+
+    if(header_name.empty())
+    {  
+        //cerr << "Error: Invalid header name:" << header_name<< endl;
+        return false;
+    }
+  
+  //header name can contain any letter, digit, and the character “-”
+  size_t found = header_name.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-");
+
+  if (found != string::npos)
+  {
+    //std::cout << "The first non-alphabetic character is " << header_name[found] << "at position " << found << endl;
+    return false;
+  }
+
+    response.headers[header_name] = header_value;
+    return true;
+}
+
+// Parser for HTTP response
+void HTTPRespParser(const char* data, int len, HTTPResponse& response)
+{
+    stringstream StStrm(string(data, len));
+    string line;
+    int num_valid_headers = 0;
+    int num_invalid_headers = 0;
+
+    // Parse the begining line or status line
+    if (!getline(StStrm, line) || !parse_status_line(line, response)) {
+        //If status line is invalid(as the case of tc3, it returns from here)
+        return;
+    }
+
+    // Parse rest of buffer / header lines
+    while (getline(StStrm, line) && !line.empty())
+    {
+        //Check line by line for header validity
+        if (parse_header_line(line, response)) {
+            num_valid_headers++;
+        } else {
+            num_invalid_headers++;
+        }
+    }
+
+    // Printing Expected Output as per the Test cases
+    cout<< "HTTP Version:" << response.HTTP_version << endl;
+    cout<< "Status:" << response.status << endl;
+    cout<< "Number of valid headers:" << num_valid_headers << endl;
+    cout<< "Number of invalid headers:" << num_invalid_headers << endl;
+    cout << endl;
+}
+
+
+// Entry point to the Parser program
+int main()
+{
+    //Sample testcases for http parser [BROADCOM_Assignment]
+    //Test case-1 (tc1): buffer used as input to parser
+    //contiguous buffer of data with the header of HTTP response.
+    //Each line of response terminated with CR LF ("\r\n")
+    const char* tc1 = 
+      "HTTP/1.0 200 OK\r\n"
+      "cache-control: public\r\n"
+      "content-length: 0\r\n"
+      "content-type: image/svg+xml\r\n"
+      "date: Tue, 22 Jun 2021 22:24:42 GMT\r\n";
+  
+  	 //Test case-2 (tc2)
+     const char* tc2 = 
+       "HTTP/1.1 302 Found\r\n"
+       "cache-control: public\r\n"
+       "Transfer-encoding: chunked\r\n"
+       "invalid_header\r\n"
+       "date: Tue, 22 Jun 2021 22:24:42 GMT\r\n";
+  
+    //Test case-3 (tc3)
+    const char* tc3 =
+       "Header1: value1\r\n"
+       "date: Tue, 22 Jun 2021 22:24:42 GMT\r\n"
+       "content-length: 1337\r\n";
+  
+     HTTPResponse response;
+     //Executing TC1
+     HTTPRespParser(tc1, strlen(tc1), response);
+     //Executing TC2
+     HTTPRespParser(tc2, strlen(tc2), response);
+     //Executing TC3
+     HTTPRespParser(tc3, strlen(tc3), response);
+
+     return 0;
+}
